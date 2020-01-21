@@ -1,0 +1,6 @@
+*.csv
+*.pyc
+.vscode
+*.json
+*.dat
+*.pickle
