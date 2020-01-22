@@ -1,7 +1,6 @@
 # from matrix_factorization.model import Matrix_factorization
-from userCF.model import UserCF
+from userCF.model import UserCF, train_user_fc_model, evaluate_user_fc_model
 import pandas as pd
-import pickle
 from preprocess_retailrocket import preprocess_event_data
 
 
@@ -19,31 +18,14 @@ def train_and_evaluate_matrix_factorization_model():
     m.train(train)
 
 
-def train_user_fc_model():
-    event_data = pd.read_csv('data/Retailrocket/events.csv')
-    # use small set for limited memory
-    # event_data = event_data.sample(frac=0.6)
-    event_data = event_data.iloc[:int(len(event_data)*0.6), :]
-    split = int(len(event_data)*0.8)
-    train = event_data.iloc[:split, :]
-    test = event_data.iloc[split:, :]
-    users_id = pd.unique(train['visitorid'])
-    items_id = pd.unique(train['itemid'])
-    model = UserCF(users_id, 3)
-    model.form_users_distance_matrix(train, metric='cosine')
-    model.save('userCF')
-
-
 if __name__ == '__main__':
     # train_and_evaluate_matrix_factorization_model()
-    train_user_fc_model()
-    raise SystemExit
-    model = UserCF([], 200)
-    model.load('userCF')
-    event_data = pd.read_csv('data/Retailrocket/events.csv')
-    event_data = event_data.iloc[:int(len(event_data)*0.6), :]
-    bool_index = event_data['event'] != 1
-    event_data = event_data.loc[bool_index, :]
-    split = int(len(event_data)*0.8)
-    test = event_data.iloc[split:, :]
-    model.evaluate(test, 'prediction')
+    # train_user_fc_model(0.6, 'data/Retailrocket/events.csv',
+    #                     'userCF/Retailrocket')
+    # evaluate_user_fc_model(0.6, 'data/Retailrocket/events.csv',
+    #                        'userCF/Retailrocket')
+    # train_user_fc_model(1, 'data/MovieLens/ratings.csv',
+    #                     'userCF/MovieLens')
+    for k, n in [(10, 20), (30, 20), (40, 20), (80, 20), (120, 20), (160, 20)]:
+        evaluate_user_fc_model(1, 'data/MovieLens/ratings.csv',
+                               'userCF/MovieLens', k, n, False)
