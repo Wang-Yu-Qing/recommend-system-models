@@ -20,12 +20,18 @@ def train_and_evaluate_matrix_factorization_model():
 
 if __name__ == '__main__':
     # train_and_evaluate_matrix_factorization_model()
-    # train_user_fc_model(0.6, 'data/Retailrocket/events.csv',
-    #                     'userCF/Retailrocket')
-    # evaluate_user_fc_model(0.6, 'data/Retailrocket/events.csv',
-    #                        'userCF/Retailrocket')
     # train_user_fc_model(1, 'data/MovieLens/ratings.csv',
-    #                     'userCF/MovieLens')
+    #                     'userCF/MovieLens', IIF=False)
+    # for k, n in [(10, 20), (30, 20), (40, 20), (80, 20), (120, 20), (160, 20)]:
+    #     evaluate_user_fc_model(1, 'data/MovieLens/ratings.csv',
+    #                            'userCF/MovieLens', k, n,
+    #                            ensure_new=False,
+    #                            IIF=True)
+
+    train_user_fc_model(0.6, 'data/Retailrocket/events.csv',
+                        'userCF/Retailrocket', IIF=True)
     for k, n in [(10, 20), (30, 20), (40, 20), (80, 20), (120, 20), (160, 20)]:
-        evaluate_user_fc_model(1, 'data/MovieLens/ratings.csv',
-                               'userCF/MovieLens', k, n, False)
+        evaluate_user_fc_model(0.6, 'data/Retailrocket/events.csv',
+                               'userCF/Retailrocket', k, n,
+                               ensure_new=False,
+                               IIF=True)
