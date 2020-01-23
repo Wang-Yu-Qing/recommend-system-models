@@ -28,10 +28,11 @@ if __name__ == '__main__':
     #                            ensure_new=False,
     #                            IIF=True)
 
-    train_user_fc_model(0.6, 'data/Retailrocket/events.csv',
-                        'userCF/Retailrocket', IIF=True)
-    for k, n in [(10, 20), (30, 20), (40, 20), (80, 20), (120, 20), (160, 20)]:
+    # train_user_fc_model(0.6, 'data/Retailrocket/events.csv',
+    #                     'userCF/Retailrocket', IIF=True)
+    # for k, n in [(10, 20), (30, 20), (40, 20), (80, 20), (120, 20), (160, 20)]:
+    for k, n in [(280, 20), (380, 20), (500, 20), (700, 20), (800, 20), (900, 20)]:
         evaluate_user_fc_model(0.6, 'data/Retailrocket/events.csv',
                                'userCF/Retailrocket', k, n,
-                               ensure_new=False,
-                               IIF=True)
+                               ensure_new=True,
+                               IIF=False)
