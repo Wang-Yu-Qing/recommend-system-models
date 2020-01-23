@@ -8,7 +8,7 @@ from .item import Item
 
 
 class UserCF(object):
-    def __init__(self, all_user_id, k, n, ensure_new=True, IIF=False):
+    def __init__(self, all_id, k, n, ensure_new=True, IIF=False):
         """
             pass unique id for users and items
             @k is the number of the most similar users to take into account
@@ -19,7 +19,11 @@ class UserCF(object):
         self.users, self.items = {}, {}
         # init 'matrix', using dict rather than list of list
         # so that the user_id is not ristricted to be 0~len(users)-1
-        self.user_sim_matrix = {int(user_id): {} for user_id in all_user_id}
+        # for userCF, the matrix keys are user ids.
+        # {'userA':{'userB': sim_between_A_and_B, .....},
+        #  'userB':{.....},
+        #  ....}
+        self.sim_matrix = {int(user_id): {} for user_id in all_id}
         self.k = k
         self.n = n
         self.IIF = IIF
@@ -55,9 +59,9 @@ class UserCF(object):
            update the dict by adding the sim value to the value of user_B
         """
         try:
-            count_dict = self.user_sim_matrix[user_A_id]
+            count_dict = self.sim_matrix[user_A_id]
         except KeyError:
-            count_dict = self.user_sim_matrix[user_A_id] = {}  # all reference
+            count_dict = self.sim_matrix[user_A_id] = {}  # all reference
         if item_popularity is not None:
             try:
                 count_dict[user_B_id] += 1/log(1+item_popularity)
@@ -96,7 +100,7 @@ class UserCF(object):
             where lA is the number of unique items A touched and
             lB is the numebr of unique items B touched.
         """
-        for user_id, count in self.user_sim_matrix.items():  # count is reference
+        for user_id, count in self.sim_matrix.items():  # count is reference
             try:
                 all_count = len(self.users[user_id].covered_items)
             except KeyError:
@@ -152,7 +156,7 @@ class UserCF(object):
         target_user = self.users[target_user_id]
         for user_id in related_users_id:
             similar_user = self.users[user_id]
-            similarity = self.user_sim_matrix[target_user_id][user_id]
+            similarity = self.sim_matrix[target_user_id][user_id]
             for item_id in similar_user.covered_items:
                 if self.ensure_new and (item_id in target_user.covered_items):
                     continue  # skip item that already been bought
@@ -175,7 +179,7 @@ class UserCF(object):
         try:
             target_user = self.users[user_id]
             # find the top k users that most like the input user
-            related_users = self.user_sim_matrix[user_id]
+            related_users = self.sim_matrix[user_id]
             if len(related_users) == 0:
                 # print('user {} didn\'t has any common item with other users')
                 return -1
@@ -243,7 +247,7 @@ class UserCF(object):
         return {'recall': recall, 'precision': precision, 'coverage': coverage}
 
 
-def train_user_fc_model(portion, event_data_path, model_save_dir, IIF):
+def train_user_cf_model(portion, event_data_path, model_save_dir, IIF):
     event_data = pd.read_csv(event_data_path)
     # use small set for limited memory
     event_data = event_data.iloc[:int(len(event_data)*portion), :]
@@ -256,7 +260,7 @@ def train_user_fc_model(portion, event_data_path, model_save_dir, IIF):
     model.save(model_save_dir)
 
 
-def evaluate_user_fc_model(portion, event_data_path, model_save_dir,
+def evaluate_user_cf_model(portion, event_data_path, model_save_dir,
                            k, n, ensure_new, IIF):
     # call static method without init class object
     model = UserCF.load(model_save_dir, IIF)
