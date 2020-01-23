@@ -13,6 +13,7 @@ If we decrease **k**, the coverage will increase. This is because as the number 
 #### not ensure new
 For the Retailrocket data set, the precision and recall is relatively low. Because the data set comes from E-commerce platform, there are plenty of users make few actions as is shown below.
 ![avatar](plot/retailrocket_user_freq.png)
+
 So for new users in the test data set we cannot make recommendation merely based on userCF model. And for users that shown in the training set, most of their items lists are small, which makes it difficult for the model to have a high recall and precision.
 ![avatar](plot/retailrocket_not_ensure_new.png)
 #### ensure new
