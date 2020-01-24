@@ -62,7 +62,7 @@ class UserCF(object):
             count_dict = self.sim_matrix[user_A_id]
         except KeyError:
             count_dict = self.sim_matrix[user_A_id] = {}  # all reference
-        if item_popularity is not None:
+        if self.IIF:
             try:
                 count_dict[user_B_id] += 1/log(1+item_popularity)
             except KeyError:
@@ -80,10 +80,7 @@ class UserCF(object):
         """
         for item in self.items.values():
             users = list(item.covered_users)  # convert to list for indexing
-            if self.IIF:
-                item_popularity = len(users)
-            else:
-                item_popularity = None
+            item_popularity = len(users)
             # iter through all user pairs
             for i in range(len(users)-1):
                 for j in range(i+1, len(users)):
@@ -177,40 +174,34 @@ class UserCF(object):
 
     def make_recommendation(self, user_id):
         try:
-            target_user = self.users[user_id]
             # find the top k users that most like the input user
             related_users = self.sim_matrix[user_id]
-            if len(related_users) == 0:
-                # print('user {} didn\'t has any common item with other users')
-                return -1
-            related_users = sorted(related_users.items(),
-                                   key=lambda item: item[1],
-                                   reverse=True)  # return a list of tuples
-            if len(related_users) >= self.k:
-                related_users_id = [x[0] for x in related_users[:self.k]]
-            else:
-                related_users_id = [x[0] for x in related_users]
-            items_rank = self.rank_potential_items(user_id, related_users_id)
-            if self.ensure_new and len(items_rank) == 0:
-                # print('All recommend items has already been bought by user {}.'.format(user_id))
-                return -3
-            return self.get_top_n_items(items_rank)
         except KeyError:
             # print('User {} has not shown in the training set.')
-            return -2
-
-    def compute_n_hit(self, user_id, real_items):
-        # see what items we will recommend to this user
-        recommend_items = self.make_recommendation(user_id)
-        if not isinstance(recommend_items, list):
-            # print('Cannot make recommendation for this user with error code: {}'.format(recommend_items))  # noqa
             return -1
+        if len(related_users) == 0:
+            # print('user {} didn\'t has any common item with other users')
+            return -2
+        related_users = sorted(related_users.items(),
+                               key=lambda item: item[1],
+                               reverse=True)  # return a list of tuples
+        if len(related_users) >= self.k:
+            related_users_id = [x[0] for x in related_users[:self.k]]
+        else:
+            related_users_id = [x[0] for x in related_users]
+        items_rank = self.rank_potential_items(user_id, related_users_id)
+        if self.ensure_new and len(items_rank) == 0:
+            # print('All recommend items has already been bought by user {}.'.format(user_id))
+            return -3
+        return self.get_top_n_items(items_rank)
+
+    def compute_n_hit(self, reco_items_id, real_items_id):
         # count hit
         n_hit = 0
-        for item_id in real_items:
-            if item_id in recommend_items:
+        for item_id in real_items_id:
+            if item_id in reco_items_id:
                 n_hit += 1
-        return n_hit, recommend_items
+        return n_hit
 
     def evaluate(self, test_data):
         """compute recall, precision and coverage
@@ -224,20 +215,22 @@ class UserCF(object):
             # get user's real interested items id
             boolIndex = test_data['visitorid'] == user_id
             user_data = test_data.loc[boolIndex, :]
-            real_items = pd.unique(user_data['itemid'])
-            try:
-                n_hit, reco_items = self.compute_n_hit(user_id, real_items)
-            except TypeError:
+            real_items_id = pd.unique(user_data['itemid'])
+            # make recommendation for this user
+            reco_items_id = self.make_recommendation(user_id)
+            if not isinstance(reco_items_id, list):
+                print('cannot make recommendation for user {}'.format(user_id))
                 continue
+            n_hit = self.compute_n_hit(reco_items_id, real_items_id)
             # recall
-            recall = n_hit/len(real_items)
+            recall = n_hit/len(real_items_id)
             total_recall += recall
             # precision
-            precision = n_hit/len(reco_items)
+            precision = n_hit/len(reco_items_id)
             total_precision += precision
             n_valid_users += 1
             # coverage
-            covered_items.update(reco_items)
+            covered_items.update(reco_items_id)
         recall = total_recall/n_valid_users
         precision = total_precision/n_valid_users
         coverage = len(covered_items)/len(self.items.keys())

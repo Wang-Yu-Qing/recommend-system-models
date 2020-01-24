@@ -1,5 +1,6 @@
 # from matrix_factorization.model import Matrix_factorization
-from userCF.model import UserCF, train_user_cf_model, evaluate_user_cf_model
+from userCF.model import train_user_cf_model, evaluate_user_cf_model
+from itemCF.model import train_item_cf_model, evaluate_item_cf_model
 import pandas as pd
 from preprocess_retailrocket import preprocess_event_data
 
@@ -20,13 +21,13 @@ def train_and_evaluate_matrix_factorization_model():
 
 if __name__ == '__main__':
     # train_and_evaluate_matrix_factorization_model()
-    train_user_cf_model(1, 'data/MovieLens/ratings.csv',
-                        'userCF/MovieLens', IIF=True)
-    for k, n in [(10, 20), (30, 20), (40, 20), (80, 20), (120, 20), (160, 20)]:
-        evaluate_user_cf_model(1, 'data/MovieLens/ratings.csv',
-                               'userCF/MovieLens', k, n,
-                               ensure_new=True,
-                               IIF=True)
+    # train_user_cf_model(1, 'data/MovieLens/ratings.csv',
+    #                     'userCF/MovieLens', IIF=True)
+    # for k, n in [(10, 20), (30, 20), (40, 20), (80, 20), (120, 20), (160, 20)]:
+    #     evaluate_user_cf_model(1, 'data/MovieLens/ratings.csv',
+    #                            'userCF/MovieLens', k, n,
+    #                            ensure_new=True,
+    #                            IIF=True)
 
     # train_user_cf_model(0.6, 'data/Retailrocket/events.csv',
     #                     'userCF/Retailrocket', IIF=True)
@@ -36,3 +37,10 @@ if __name__ == '__main__':
     #                            'userCF/Retailrocket', k, n,
     #                            ensure_new=True,
     #                            IIF=False)
+
+    # train_item_cf_model(1, 'data/MovieLens/ratings.csv',
+    #                     'itemCF/MovieLens', IIF=True)
+
+    evaluate_item_cf_model(1, 'data/MovieLens/ratings.csv',
+                           'itemCF/MovieLens', 20, 30,
+                           ensure_new=True, IIF=True)
