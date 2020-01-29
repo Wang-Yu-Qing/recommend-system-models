@@ -138,26 +138,28 @@ class ItemCF(UserCF):
         return super().compute_n_hit(reco_items_id, real_items_id)
 
     def evaluate(self, test_data):
-        users_id = pd.unique(test_data['visitorid'])
-        recall, precision = 0, 0
-        covered_items_id = set()
-        for user_id in users_id:
-            boolIndex = test_data['visitorid'] == user_id
-            real_items = pd.unique(test_data.loc[boolIndex, 'itemid'])
-            recommended_items_id = self.make_recommendation(user_id)
-            n_hit = self.compute_n_hit(recommended_items_id, real_items)
-            recall_user = n_hit/len(real_items)
-            precision_user = n_hit/len(recommended_items_id)
-            recall += recall_user
-            precision += precision_user
-            covered_items_id.update(recommended_items_id)
-            print('user {} done with {} history items'.format(user_id,
-                                                              len(self.users[user_id].covered_items)))
-        n_users = len(users_id)
-        recall /= n_users
-        precision /= n_users
-        coverage = len(covered_items_id)/len(self.items)
-        return {'recall': recall, 'precision': precision, 'coverage': coverage}
+        return super().evaluate(test_data)
+    # def evaluate(self, test_data):
+    #     users_id = pd.unique(test_data['visitorid'])
+    #     recall, precision = 0, 0
+    #     covered_items_id = set()
+    #     for user_id in users_id:
+    #         boolIndex = test_data['visitorid'] == user_id
+    #         real_items = pd.unique(test_data.loc[boolIndex, 'itemid'])
+    #         recommended_items_id = self.make_recommendation(user_id)
+    #         n_hit = self.compute_n_hit(recommended_items_id, real_items)
+    #         recall_user = n_hit/len(real_items)
+    #         precision_user = n_hit/len(recommended_items_id)
+    #         recall += recall_user
+    #         precision += precision_user
+    #         covered_items_id.update(recommended_items_id)
+    #         print('user {} done with {} history items'.format(user_id,
+    #                                                           len(self.users[user_id].covered_items)))
+    #     n_users = len(users_id)
+    #     recall /= n_users
+    #     precision /= n_users
+    #     coverage = len(covered_items_id)/len(self.items)
+    #     return {'recall': recall, 'precision': precision, 'coverage': coverage}
 
 
 def train_item_cf_model(portion, event_data_path, model_save_dir, IIF):

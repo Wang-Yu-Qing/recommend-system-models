@@ -2,11 +2,6 @@ from keras.layers import Input, Embedding, Flatten, dot
 import keras
 import pandas as pd
 
-"""
-    data used can be downloaded from:
-    https://www.kaggle.com/retailrocket/ecommerce-dataset
-"""
-
 
 class Matrix_factorization(object):
     def __init__(self, paras):
@@ -16,7 +11,7 @@ class Matrix_factorization(object):
         # 商品id嵌入网络结构
         item_input = Input(shape=[1], name='Items')
         item_embed = Embedding(input_dim=self.paras['item_embed_input_dim'],
-                               output_dim=self.paras['item_embed_output_dim'],
+                               output_dim=self.paras['item_embed_output_dim'],  # 该向量的维数，也是隐类的个数
                                input_length=1,
                                name='Items_embedding')(item_input)
         item_vec = Flatten(name='Items_flatten')(item_embed)

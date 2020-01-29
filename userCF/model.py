@@ -37,6 +37,8 @@ class UserCF(object):
                 Init User object for each user,
                 and record unique items touched by the user
         """
+        if len(self.users) != 0 or len(self.items) != 0:
+            raise ValueError('Item and user objects already been inited!')
         for index, row in event_data.iterrows():
             user_id, item_id = int(row['visitorid']), int(row['itemid'])
             # find if the item and user has been created
@@ -122,27 +124,19 @@ class UserCF(object):
         self.compute_user_user_sim_base_on_common_items()
         self.standardize_sim_values()
 
-    def save(self, dir):
+    def save(self, file_path):
         """
             save the whole model
         """
-        if self.IIF:
-            file_name = 'user_sim_matrix_IIF.pickle'
-        else:
-            file_name = 'user_sim_matrix.pickle'
-        with open(os.path.join(dir, file_name), 'wb') as f:
+        with open(file_path, 'wb') as f:
             f.write(pickle.dumps(self))
 
     @staticmethod
-    def load(dir, IIF):
+    def load(file_path):
         """
             load the whole model
         """
-        if IIF:
-            file_name = 'user_sim_matrix_IIF.pickle'
-        else:
-            file_name = 'user_sim_matrix.pickle'
-        with open(os.path.join(dir, file_name), 'rb') as f:
+        with open(file_path, 'rb') as f:
             model = pickle.loads(f.read())
         return model
 
@@ -151,6 +145,7 @@ class UserCF(object):
         """
         items_rank = {}
         target_user = self.users[target_user_id]
+        n_similar_users = 0
         for user_id in related_users_id:
             similar_user = self.users[user_id]
             similarity = self.sim_matrix[target_user_id][user_id]
@@ -162,6 +157,14 @@ class UserCF(object):
                     items_rank[item_id] += score
                 except KeyError:
                     items_rank[item_id] = score
+            n_similar_users += 1
+            break_condition1 = (n_similar_users >= self.k) and (len(items_rank) >= self.n)
+            if break_condition1:
+                break
+        else:
+            # all related users has been checked, and haven't meet the break condition
+            # so just return the current items_rank
+            pass
         return items_rank
 
     def get_top_n_items(self, items_rank):
@@ -185,10 +188,7 @@ class UserCF(object):
         related_users = sorted(related_users.items(),
                                key=lambda item: item[1],
                                reverse=True)  # return a list of tuples
-        if len(related_users) >= self.k:
-            related_users_id = [x[0] for x in related_users[:self.k]]
-        else:
-            related_users_id = [x[0] for x in related_users]
+        related_users_id = [x[0] for x in related_users]
         items_rank = self.rank_potential_items(user_id, related_users_id)
         if self.ensure_new and len(items_rank) == 0:
             # print('All recommend items has already been bought by user {}.'.format(user_id))
@@ -203,12 +203,12 @@ class UserCF(object):
                 n_hit += 1
         return n_hit
 
-    def evaluate(self, test_data):
+    def evaluate_recommendation(self, test_data):
         """compute recall, precision and coverage
         """
         users_id = pd.unique(test_data['visitorid'])
-        total_recall = 0
-        total_precision = 0
+        recall = 0
+        precision = 0
         n_valid_users = 0
         covered_items = set()
         for user_id in users_id:
@@ -223,24 +223,29 @@ class UserCF(object):
                 continue
             n_hit = self.compute_n_hit(reco_items_id, real_items_id)
             # recall
-            recall = n_hit/len(real_items_id)
-            total_recall += recall
+            recall += n_hit/len(real_items_id)
             # precision
-            precision = n_hit/len(reco_items_id)
-            total_precision += precision
+            precision += n_hit/len(reco_items_id)
             n_valid_users += 1
+            print('n hits:')
+            print(n_hit)
+            print('recall and precision:')
+            print(n_hit/len(real_items_id), n_hit/len(reco_items_id))
             # coverage
             covered_items.update(reco_items_id)
-        recall = total_recall/n_valid_users
-        precision = total_precision/n_valid_users
+        recall /= n_valid_users
+        precision /= n_valid_users
         coverage = len(covered_items)/len(self.items.keys())
         print('number of valid unique users: {}'.format(n_valid_users))
         print('total unique users in the test set: {}'.
               format(len(pd.unique(test_data['visitorid']))))
         return {'recall': recall, 'precision': precision, 'coverage': coverage}
 
+    def evaluate(self, test_data):
+        return self.evaluate_recommendation(test_data)
 
-def train_user_cf_model(portion, event_data_path, model_save_dir, IIF):
+
+def train_user_cf_model(portion, event_data_path, model_save_path, IIF):
     event_data = pd.read_csv(event_data_path)
     # use small set for limited memory
     event_data = event_data.iloc[:int(len(event_data)*portion), :]
@@ -250,13 +255,13 @@ def train_user_cf_model(portion, event_data_path, model_save_dir, IIF):
     items_id = pd.unique(train['itemid'])
     model = UserCF(users_id, 0, 0, ensure_new=None, IIF=IIF)
     model.build_user_user_similarity_matrix(train)
-    model.save(model_save_dir)
+    model.save(model_save_path)
 
 
-def evaluate_user_cf_model(portion, event_data_path, model_save_dir,
+def evaluate_user_cf_model(portion, event_data_path, model_save_path,
                            k, n, ensure_new, IIF):
     # call static method without init class object
-    model = UserCF.load(model_save_dir, IIF)
+    model = UserCF.load(model_save_path, IIF)
     model.k, model.n = k, n
     model.ensure_new = ensure_new
     event_data = pd.read_csv(event_data_path)
