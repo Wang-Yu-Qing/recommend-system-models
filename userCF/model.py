@@ -1,47 +1,13 @@
 import pandas as pd
-from copy import deepcopy
 from math import sqrt, log
-from Recommend_model import Recommend_model
-from .user import User
-from .item import Item
+from Recommend_model import Recommend_model, Item, User
 
 
 class UserCF(Recommend_model):
-    def __init__(self, n, model_type, ensure_new=True):
-        super().__init__(n, model_type, ensure_new=ensure_new)
-        # init 'similarity matrix', using dict rather than list of list
-        # so that the user_id is not ristricted to be 0~len(users)-1
-        # for userCF, the matrix keys are user ids.
-        # {'userA':{'userB': sim_between_A_and_B, .....},
-        #  'userB':{.....},
-        #  ....}
-        self.sim_matrix = self.users.deepcopy()
-
-    def init_item_and_user_objects(self, event_data):
-        """
-            iter through the training data, doing:
-                Init Item object for each item,
-                and record unique users who touched this item
-                Init User object for each user,
-                and record unique items touched by the user
-        """
-        if len(self.users) != 0 or len(self.items) != 0:
-            raise ValueError('Item and user objects already been inited!')
-        for index, row in event_data.iterrows():
-            user_id, item_id = int(row['visitorid']), int(row['itemid'])
-            # find if the item and user has been created
-            try:
-                self.items[item_id].covered_users.add(user_id)
-            except KeyError:
-                item = Item(item_id)
-                item.covered_users.add(user_id)
-                self.items[item_id] = item
-            try:
-                self.users[user_id].covered_items.add(item_id)
-            except KeyError:
-                user = User(user_id)
-                user.covered_items.add(item_id)
-                self.users[user_id] = user
+    def __init__(self, n, k, data_type, ensure_new=True):
+        super().__init__(n, "UserCF", data_type, ensure_new=ensure_new)
+        self.k = k
+        self.name += "_k_{}".format(k)
 
     def update_user_user_sim(self, user_A_id, user_B_id, item_popularity):
         """when find the user_A and user_B have common item with popularity
@@ -61,8 +27,10 @@ class UserCF(Recommend_model):
     def compute_user_user_sim_base_on_common_items(self):
         """
             for every item, get its covered user pairs
-            increase the similarity between the corresponding users in each pair
+            increase the similarity between the corresponding
+            users in each pair
         """
+        self.sim_matrix = {}
         for item in self.items.values():
             users = list(item.covered_users)  # convert to list for indexing
             item_popularity = len(users)
@@ -93,13 +61,22 @@ class UserCF(Recommend_model):
         """
             form user similarity matrix(dict)
         """
-        self.init_item_and_user_objects(event_data)
         self.compute_user_user_sim_base_on_common_items()
         self.standardize_sim_values()
 
-    def fit(self, event_data):
-        super().fit(event_data)
+    def fit(self, event_data, force_training=False, save=True):
+        # init 'similarity matrix', using dict rather than list of list
+        # so that the user_id is not ristricted to be 0~len(users)-1
+        # for userCF, the matrix keys are user ids.
+        # {'userA':{'userB': sim_between_A_and_B, .....},
+        #  'userB':{.....}, ...}
+        if super().fit(event_data, force_training) == "previous model loaded":
+            return
+        print("[{}] Building user-user similarity matrix, this may take some time...".format(self.name))  # noqa
         self.build_user_user_similarity_matrix(event_data)
+        print("[{}] Build done!".format(self.name))
+        if save:
+            super().save()
 
     def rank_potential_items(self, target_user_id, related_users_id):
         """rank score's range is (0, +inf)
@@ -124,17 +101,19 @@ class UserCF(Recommend_model):
             if break_condition1:
                 break
         else:
-            # all related users has been checked, and haven't meet the break condition
+            # all related users has been checked,
+            # still haven't meet the break condition
             # so just return the current items_rank
             print('Not enough users to meet k or items to meet n: {}, {}'.
                   format(n_similar_users, len(items_rank)))
         return items_rank
 
     def make_recommendation(self, user_id):
-        super().make_recommendation(user_id)
+        if not super().valid_user(user_id):
+            return -1
         related_users = self.sim_matrix[user_id]
         if len(related_users) == 0:
-            print('user {} didn\'t has any common item with other users')
+            print('[{}] User {} didn\'t has any common item with other users'.format(self.name))  # noqa
             return -2
         related_users = sorted(related_users.items(),
                                key=lambda item: item[1],
@@ -142,7 +121,7 @@ class UserCF(Recommend_model):
         related_users_id = [x[0] for x in related_users]
         items_rank = self.rank_potential_items(user_id, related_users_id)
         if self.ensure_new and len(items_rank) == 0:
-            print('All recommend items has already been bought by user {}.'.format(user_id))
+            print('[{}] All recommend items has already been bought by user {}.'.format(self.name, user_id))  # noqa
             return -3
         return super().get_top_n_items(items_rank)
 
