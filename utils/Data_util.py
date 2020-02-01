@@ -2,7 +2,7 @@ from itertools import islice
 import pandas as pd
 import os
 from glob import glob
-from Recommend_model import Recommend_model
+from Base_model import Base_model
 
 
 class Data_util:
@@ -66,7 +66,7 @@ class Data_util:
         and its popularity is high, then mark
         this item as user's negative sample
         """
-        self.items, self.users = Recommend_model.init_item_and_user_objects(pos_samples)  # noqa
+        self.items, self.users = Base_model.init_item_and_user_objects(pos_samples)  # noqa
         # sort items by popularity
         item_pop = {}
         for item_id, item in self.items.items():

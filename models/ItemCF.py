@@ -1,4 +1,4 @@
-from Recommend_model import Recommend_model, Item, User
+from Base_model import Base_model, Item, User
 from math import sqrt, log
 import os
 import csv
@@ -6,7 +6,7 @@ import pandas as pd
 import pickle
 
 
-class ItemCF(Recommend_model):
+class ItemCF(Base_model):
     def __init__(self, n, k, data_type, ensure_new=True):
         super().__init__(n, "ItemCF", data_type, ensure_new=ensure_new)
         self.k = k

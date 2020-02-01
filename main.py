@@ -1,7 +1,6 @@
-# from matrix_factorization.model import Matrix_factorization
-from userCF.model import UserCF
-from itemCF.model import ItemCF
-from LFM.model import LFM
+from models.ItemCF import ItemCF
+from models.UserCF import UserCF
+from models.LFM import LFM
 from utils.Data_util import Data_util
 import pandas as pd
 
@@ -51,6 +50,6 @@ def run_model(model_type, data_type, **kwargs):
 
 
 if __name__ == '__main__':
-    # run_model("UserCF", "MovieLens_100K", n=20, k=80)
-    # run_model("ItemCF", "MovieLens_100K", n=20, k=20)
+    run_model("UserCF", "MovieLens_100K", n=20, k=80, force_training=False)
+    run_model("ItemCF", "MovieLens_100K", n=20, k=20, force_training=False)
     run_model("LFM", "MovieLens_100K", n=100, dim=10, neg_frac=20, force_training=True)  # noqa

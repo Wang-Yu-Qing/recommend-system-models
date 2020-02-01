@@ -5,10 +5,10 @@ from sklearn.model_selection import train_test_split
 from keras.layers import Input, Embedding, Flatten, dot, Dense, Concatenate, Add  # noqa
 from keras.models import load_model
 from keras import optimizers
-from Recommend_model import Recommend_model, User, Item
+from Base_model import Base_model, User, Item
 
 
-class LFM(Recommend_model):
+class LFM(Base_model):
     def __init__(self, data_type, n, hidden_dim,
                  neg_frac_in_train, merge_type="dot", ensure_new=True):
         super().__init__(n, "LFM", data_type, ensure_new)
@@ -119,7 +119,7 @@ class LFM(Recommend_model):
         optimizer = optimizers.Adam(lr=0.0005)
         self.model.compile(optimizer, 'mse')
         keras.utils.plot_model(self.model,
-                               to_file='LFM/model_struc/model_{}.png'.format(
+                               to_file='models/model_struc/model_{}.png'.format(
                                    self.merge_type),
                                show_shapes=True, show_layer_names=True)
         self.model.summary()

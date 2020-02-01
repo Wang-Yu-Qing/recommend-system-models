@@ -17,7 +17,7 @@ class User(object):
         self.covered_items = set()
 
 
-class Recommend_model:
+class Base_model:
     def __init__(self, n, model_type, data_type, ensure_new=True):
         """base class for all recommendation models
 
@@ -138,14 +138,14 @@ class Recommend_model:
         return {'recall': recall, 'precision': precision, 'coverage': coverage}
 
     def save(self):
-        file_path = os.path.join('saved_models', self.name + '.pickle')
+        file_path = os.path.join('models/saved_models', self.name + '.pickle')
         with open(file_path, 'wb') as f:
             f.write(pickle.dumps(self))
         print("[{}] Model saved to {}".format(self.name, file_path))
 
     def load(self):
         print("[{}] Trying to find and load previous trained model...".format(self.name))  # noqa
-        file_path = os.path.join('saved_models', self.name + '.pickle')
+        file_path = os.path.join('models/saved_models', self.name + '.pickle')
         with open(file_path, 'rb') as f:
             # self = pickle.loads(f.read())  # reference detached!
             self.__dict__.update(pickle.loads(f.read()).__dict__)

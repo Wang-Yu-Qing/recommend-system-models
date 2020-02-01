@@ -1,9 +1,9 @@
 import pandas as pd
 from math import sqrt, log
-from Recommend_model import Recommend_model, Item, User
+from Base_model import Base_model, Item, User
 
 
-class UserCF(Recommend_model):
+class UserCF(Base_model):
     def __init__(self, n, k, data_type, ensure_new=True):
         super().__init__(n, "UserCF", data_type, ensure_new=ensure_new)
         self.k = k
