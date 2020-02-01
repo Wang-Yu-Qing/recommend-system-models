@@ -42,13 +42,15 @@ class ItemCF(Recommend_model):
                 sim /= sqrt(item_pop_A*item_pop_B)
                 assert sim <= 1
 
-    def fit(self, event_data):
-        super().fit(event_data)
+    def fit(self, event_data, force_training=False, save=True):
+        super().fit(event_data, force_training)
         self.sim_matrix = {}
         print("[{}] Building item-item similarity matrix, this may take some time...".format(self.name))  # noqa
         self.compute_item_item_sim_based_on_common_users()
         self.standardize_sim_values()
         print("[{}] Build done!".format(self.name))
+        if save:
+            super().save()
 
     def rank_potential_items(self, all_k_sim_items):
         items_rank = {}

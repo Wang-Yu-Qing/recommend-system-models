@@ -34,7 +34,8 @@ class Recommend_model:
         self.name = 'model_{}_{}_n_{}'.format(data_type, model_type, n)
         self.ensure_new = ensure_new
 
-    def init_item_and_user_objects(self, event_data):
+    @staticmethod
+    def init_item_and_user_objects(event_data):
         """
             iter through the training data, doing:
                 Init Item object for each item,
@@ -42,23 +43,23 @@ class Recommend_model:
                 Init User object for each user,
                 and record unique items touched by the user
         """
-        if len(self.users) != 0 or len(self.items) != 0:
-            raise ValueError('Item and user objects already been inited!')
+        items, users = {}, {}
         for index, row in event_data.iterrows():
             # find if the item and user has been created
             item_id, user_id = int(row['itemid']), int(row['visitorid'])
             try:
-                self.items[item_id].covered_users.add(user_id)
+                items[item_id].covered_users.add(user_id)
             except KeyError:
                 item = Item(item_id)
                 item.covered_users.add(user_id)
-                self.items[item_id] = item
+                items[item_id] = item
             try:
-                self.users[user_id].covered_items.add(item_id)
+                users[user_id].covered_items.add(item_id)
             except KeyError:
                 user = User(user_id)
                 user.covered_items.add(item_id)
-                self.users[user_id] = user
+                users[user_id] = user
+        return items, users
 
     def fit(self, train_data, force_training=False):
         """Init user and item dict,
@@ -72,8 +73,7 @@ class Recommend_model:
             except OSError:
                 print("[{}] Previous trained model not found, start training a new one...".format(self.name))  # noqa
         print("[{}] Init user and item objects...".format(self.name))
-        self.users, self.items = {}, {}
-        self.init_item_and_user_objects(train_data)
+        self.items, self.users = self.init_item_and_user_objects(train_data)
         print("[{}] Init done!".format(self.name))
 
     def get_top_n_items(self, items_rank):
