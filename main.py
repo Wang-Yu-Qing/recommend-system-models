@@ -7,7 +7,6 @@ import pandas as pd
 
 def prepare_data(data_type):
     train, test = Data_util(data_type).read_event_data()
-    del train["timestamp"], test["timestamp"]
     return train, test
 
 
@@ -16,7 +15,6 @@ def create_negative_samples(data_type, neg_frac):
     """
     data_util = Data_util(data_type)
     pos_samples = data_util.read_event_data(test_size=0)[0]
-    del pos_samples['rating'], pos_samples['timestamp']
     pos_samples['event'] = 1
     neg_samples = data_util.create_negative_samples(pos_samples, neg_frac)
     samples = pd.concat([neg_samples, pos_samples], ignore_index=True)
@@ -33,10 +31,12 @@ def split_samples(test_size, samples):
 def run_model(model_type, data_type, **kwargs):
     if model_type == "UserCF":
         train_data, test_data = prepare_data(data_type)
-        model = UserCF(data_type=data_type, n=kwargs['n'], k=kwargs['k'])
+        model = UserCF(data_type=data_type, n=kwargs['n'], k=kwargs['k'],
+                       timestamp=kwargs['timestamp'])
     elif model_type == "ItemCF":
         train_data, test_data = prepare_data(data_type)
-        model = ItemCF(data_type=data_type, n=kwargs['n'], k=kwargs['k'])
+        model = ItemCF(data_type=data_type, n=kwargs['n'], k=kwargs['k'],
+                       timestamp=kwargs['timestamp'])
     elif model_type == "LFM":
         samples = create_negative_samples(data_type, neg_frac=kwargs['neg_frac'])  # noqa
         train_data, test_data = split_samples(0.25, samples)
@@ -50,6 +50,12 @@ def run_model(model_type, data_type, **kwargs):
 
 
 if __name__ == '__main__':
-    run_model("UserCF", "MovieLens_100K", n=20, k=80, force_training=False)
-    run_model("ItemCF", "MovieLens_100K", n=20, k=20, force_training=False)
+    run_model("UserCF", "MovieLens_100K",
+              n=20, k=80, force_training=True, timestamp=True)
+    run_model("UserCF", "MovieLens_100K",
+              n=20, k=80, force_training=True, timestamp=False)
+    run_model("ItemCF", "MovieLens_100K",
+              n=20, k=20, force_training=False, timestamp=False)
+    run_model("ItemCF", "MovieLens_100K",
+              n=20, k=20, force_training=False, timestamp=True)
     run_model("LFM", "MovieLens_100K", n=100, dim=10, neg_frac=20, force_training=True)  # noqa

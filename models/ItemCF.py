@@ -7,32 +7,44 @@ import pickle
 
 
 class ItemCF(Base_model):
-    def __init__(self, n, k, data_type, ensure_new=True):
+    def __init__(self, n, k, data_type, ensure_new=True, timestamp=False):
         super().__init__(n, "ItemCF", data_type, ensure_new=ensure_new)
         self.k = k
         self.name += "_k_{}".format(k)
+        if timestamp:
+            self.name += "_TimeContext"
+        self.timestamp = timestamp
 
-    def update_item_item_sim(self, item_A_id, item_B_id, user_frequency):
+    def update_item_item_sim(self, item_A_info, item_B_info, user_frequency):
+        item_A_id, item_A_time = item_A_info
+        item_B_id, item_B_time = item_B_info
         try:
-            item_A = self.sim_matrix[item_A_id]
+            row = self.sim_matrix[item_A_id]
         except KeyError:
-            item_A = self.sim_matrix[item_A_id] = {}
+            row = self.sim_matrix[item_A_id] = {}
+        # compute score
         IUF = log(1+user_frequency)
+        if self.timestamp:
+            time_elapse = Base_model.time_elapse(item_A_time, item_B_time)
+            score = 1*time_elapse/IUF
+        else:
+            score = 1/IUF
+        # update score
         try:
-            item_A[item_B_id] += 1/IUF
+            row[item_B_id] += score
         except KeyError:
-            item_A[item_B_id] = 1/IUF
+            row[item_B_id] = score
 
     def compute_item_item_sim_based_on_common_users(self):
         for user in self.users.values():
             user_freq = len(user.covered_items)
             # update each items pair for this user
-            items = list(user.covered_items)
+            items = list(user.covered_items.items())
             for i in range(len(items)-1):
                 for j in range(i+1, len(items)):
-                    item_A_id, item_B_id = items[i], items[j]
-                    self.update_item_item_sim(item_A_id, item_B_id, user_freq)
-                    self.update_item_item_sim(item_B_id, item_A_id, user_freq)
+                    item_A_info, item_B_info = items[i], items[j]
+                    self.update_item_item_sim(item_A_info, item_B_info, user_freq)  # noqa
+                    self.update_item_item_sim(item_B_info, item_A_info, user_freq)  # noqa
 
     def standardize_sim_values(self):
         for item_id_A, sim_dict in self.sim_matrix.items():
@@ -43,7 +55,8 @@ class ItemCF(Base_model):
                 assert sim <= 1
 
     def fit(self, event_data, force_training=False, save=True):
-        super().fit(event_data, force_training)
+        if super().fit(event_data, force_training) == "previous model loaded":
+            return
         self.sim_matrix = {}
         print("[{}] Building item-item similarity matrix, this may take some time...".format(self.name))  # noqa
         self.compute_item_item_sim_based_on_common_users()
@@ -52,17 +65,34 @@ class ItemCF(Base_model):
         if save:
             super().save()
 
-    def rank_potential_items(self, all_k_sim_items):
+    def rank_potential_items(self, user_id, all_k_sim_items):
         items_rank = {}
         history_items_id = all_k_sim_items.keys()
-        for item_sim in all_k_sim_items.values():
-            for item_id, sim in item_sim:
+        user = self.users[user_id]
+        for history_item_id, items_sim in all_k_sim_items.items():
+            # get the timestamp when the last time this history item
+            # been touched by the user
+            t_history_item = user.covered_items[history_item_id]
+            for item_id, sim in items_sim:
                 if self.ensure_new and (item_id in history_items_id):
                     continue
+                # compute score
+                if self.timestamp:
+                    # note that time context model cannot be evaluated
+                    # properly using offline data, this is just a demon
+                    # user's interest for this history item
+                    t_now = 1146454548
+                    time_elapse = Base_model.time_elapse(t_now, t_history_item)
+                    score = time_elapse*sim
+                else:
+                    # if not consider time context, for history touched items
+                    # user's interest is 1
+                    score = 1*sim
                 try:
-                    items_rank[item_id] += 1*sim
+                    items_rank[item_id] += score
                 except KeyError:
-                    items_rank[item_id] = 1*sim
+                    items_rank[item_id] = score
+        assert len(items_rank) >= self.n
         return items_rank
 
     def normalize_k_items_sim(self, k_items):
@@ -76,7 +106,7 @@ class ItemCF(Base_model):
 
     def normalize_sim(self, history_items):
         # keys are item_id of history items,
-        # values are list of tuples of k similar items
+        # values are list of tuples of history item's k similar items
         # and their similarity
         for item_id, k_items in history_items.items():
             # k_items = self.normalize_k_items_sim(k_items)  # never do this!
@@ -106,7 +136,7 @@ class ItemCF(Base_model):
             except IndexError:
                 all_k_sim_items[item_id] = sim_tuple
         self.normalize_sim(all_k_sim_items)
-        items_rank = self.rank_potential_items(all_k_sim_items)
+        items_rank = self.rank_potential_items(user_id, all_k_sim_items)
         items_id = super().get_top_n_items(items_rank)
         return items_id
 

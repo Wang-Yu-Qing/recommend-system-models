@@ -128,7 +128,7 @@ class LFM(Base_model):
         # record user's history items in the training data
         assert len(pd.unique(samples['event'])) == 2
         pos_samples = samples.loc[samples['event'] == 1, :]
-        super().fit(pos_samples)
+        super().fit(pos_samples, force_training)
         self.max_user_id = max(samples['visitorid'])
         self.max_item_id = max(samples['itemid'])
         self.construct_model()

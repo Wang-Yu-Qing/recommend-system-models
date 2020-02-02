@@ -7,14 +7,14 @@ class Item(object):
     def __init__(self, id):
         assert isinstance(id, int)
         self.id = id
-        self.covered_users = set()
+        self.covered_users = {}
 
 
 class User(object):
     def __init__(self, id):
         assert isinstance(id, int)
         self.id = id
-        self.covered_items = set()
+        self.covered_items = {}
 
 
 class Base_model:
@@ -31,8 +31,26 @@ class Base_model:
         self.n = n
         self.model_type = model_type
         self.data_type = data_type
-        self.name = 'model_{}_{}_n_{}'.format(data_type, model_type, n)
+        self.name = '{}_{}_n_{}'.format(data_type, model_type, n)
         self.ensure_new = ensure_new
+
+    @staticmethod
+    def time_elapse(t1, t2, alpha=0.5):
+        return 1/(1+alpha*abs(t1-t2))
+
+    @staticmethod
+    def update_obj(dic, obj_id, timestamp):
+        """if timestamp is considered, update the
+           object(item/user) in the dict(covered_items/covered_users)
+           with the latest timestamp
+        """
+        try:
+            _timestamp = dic[obj_id]
+            if timestamp < _timestamp:
+                return
+        except KeyError:
+            pass
+        dic[obj_id] = timestamp
 
     @staticmethod
     def init_item_and_user_objects(event_data):
@@ -45,23 +63,29 @@ class Base_model:
         """
         items, users = {}, {}
         for index, row in event_data.iterrows():
-            # find if the item and user has been created
             item_id, user_id = int(row['itemid']), int(row['visitorid'])
+            event_time = row['timestamp']
+            item_info, user_info = (item_id, event_time), (user_id, event_time)  # noqa
+            # find if the item and user has been created
             try:
-                items[item_id].covered_users.add(user_id)
+                Base_model.update_obj(items[item_id].covered_users,
+                                      user_id, event_time)
             except KeyError:
                 item = Item(item_id)
-                item.covered_users.add(user_id)
+                Base_model.update_obj(item.covered_users,
+                                      user_id, event_time)
                 items[item_id] = item
             try:
-                users[user_id].covered_items.add(item_id)
+                Base_model.update_obj(users[user_id].covered_items,
+                                      item_id, event_time)
             except KeyError:
                 user = User(user_id)
-                user.covered_items.add(item_id)
+                Base_model.update_obj(user.covered_items,
+                                      item_id, event_time)
                 users[user_id] = user
         return items, users
 
-    def fit(self, train_data, force_training=False):
+    def fit(self, train_data, force_training):
         """Init user and item dict,
            self.users -> {user_id:user_object}
            self.item -> {item_id:item_object}
@@ -73,7 +97,7 @@ class Base_model:
             except OSError:
                 print("[{}] Previous trained model not found, start training a new one...".format(self.name))  # noqa
         print("[{}] Init user and item objects...".format(self.name))
-        self.items, self.users = self.init_item_and_user_objects(train_data)
+        self.items, self.users = self.init_item_and_user_objects(train_data)  # noqa
         print("[{}] Init done!".format(self.name))
 
     def get_top_n_items(self, items_rank):

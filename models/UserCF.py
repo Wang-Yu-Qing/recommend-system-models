@@ -4,25 +4,35 @@ from Base_model import Base_model, Item, User
 
 
 class UserCF(Base_model):
-    def __init__(self, n, k, data_type, ensure_new=True):
+    def __init__(self, n, k, data_type, ensure_new=True, timestamp=False):
         super().__init__(n, "UserCF", data_type, ensure_new=ensure_new)
         self.k = k
         self.name += "_k_{}".format(k)
+        if timestamp:
+            self.name += "_timecontext"
+        self.timestamp = timestamp
 
-    def update_user_user_sim(self, user_A_id, user_B_id, item_popularity):
+    def update_user_user_sim(self, user_A_info, user_B_info, item_popularity):
         """when find the user_A and user_B have common item with popularity
            find user_A's row (sim dict) in the sim matrix,
            update the dict by adding the sim value to the value of user_B
         """
+        user_A_id, user_A_time = user_A_info
+        user_B_id, user_B_time = user_B_info
         try:
             row = self.sim_matrix[user_A_id]
         except KeyError:
             row = self.sim_matrix[user_A_id] = {}  # all reference
         IIF = log(1+item_popularity)
+        if self.timestamp:
+            time_elapse = Base_model.time_elapse(user_A_time, user_B_time)
+            score = 1*time_elapse/IIF
+        else:
+            score = 1/IIF
         try:
-            row[user_B_id] += 1/IIF
+            row[user_B_id] += score
         except KeyError:
-            row[user_B_id] = 1/IIF
+            row[user_B_id] = score
 
     def compute_user_user_sim_base_on_common_items(self):
         """
@@ -32,16 +42,17 @@ class UserCF(Base_model):
         """
         self.sim_matrix = {}
         for item in self.items.values():
-            users = list(item.covered_users)  # convert to list for indexing
+            # convert to list of tuples for indexing
+            users = list(item.covered_users.items())
             item_popularity = len(users)
             # iter through all user pairs
             for i in range(len(users)-1):
                 for j in range(i+1, len(users)):
-                    user_A_id, user_B_id = users[i], users[j]
+                    user_A_info, user_B_info = users[i], users[j]
                     # remember to update pair wise!
-                    self.update_user_user_sim(user_A_id, user_B_id,
+                    self.update_user_user_sim(user_A_info, user_B_info,
                                               item_popularity)
-                    self.update_user_user_sim(user_B_id, user_A_id,
+                    self.update_user_user_sim(user_B_info, user_A_info,
                                               item_popularity)
 
     def standardize_sim_values(self):
@@ -78,39 +89,38 @@ class UserCF(Base_model):
         if save:
             super().save()
 
-    def rank_potential_items(self, target_user_id, related_users_id):
-        """rank score's range is (0, +inf)
+    def rank_potential_items(self, target_user_id, top_k_users):
+        """for k similar users, rank common items
+           rank score's range is (0, +inf)
         """
         items_rank = {}
         target_user = self.users[target_user_id]
-        n_similar_users = 0
-        for user_id in related_users_id:
-            similar_user = self.users[user_id]
-            similarity = self.sim_matrix[target_user_id][user_id]
-            for item_id in similar_user.covered_items:
+        for user_id in top_k_users:
+            sim_user = self.users[user_id]
+            sim = self.sim_matrix[target_user_id][user_id]
+            for item_id, item_time in sim_user.covered_items.items():
                 if self.ensure_new and (item_id in target_user.covered_items):
                     continue  # skip item that already been bought
-                score = similarity * 1
+                if self.timestamp:
+                    # note that time context model cannot be evaluated
+                    # properly using offline data, this is just a demon
+                    # user's interest for this history item
+                    t_now = 1146454548
+                    time_elapse = Base_model.time_elapse(item_time, t_now)
+                    score = time_elapse*sim
+                else:
+                    score = sim
                 try:
                     items_rank[item_id] += score
                 except KeyError:
                     items_rank[item_id] = score
-            n_similar_users += 1
-            break_condition1 = (n_similar_users >= self.k) and (
-                len(items_rank) >= self.n)
-            if break_condition1:
-                break
-        else:
-            # all related users has been checked,
-            # still haven't meet the break condition
-            # so just return the current items_rank
-            print('Not enough users to meet k or items to meet n: {}, {}'.
-                  format(n_similar_users, len(items_rank)))
+        assert len(items_rank) >= self.n
         return items_rank
 
     def make_recommendation(self, user_id):
         if not super().valid_user(user_id):
             return -1
+        # get all related users
         related_users = self.sim_matrix[user_id]
         if len(related_users) == 0:
             print('[{}] User {} didn\'t has any common item with other users'.format(self.name))  # noqa
@@ -118,10 +128,11 @@ class UserCF(Base_model):
         related_users = sorted(related_users.items(),
                                key=lambda item: item[1],
                                reverse=True)  # return a list of tuples
-        related_users_id = [x[0] for x in related_users]
-        items_rank = self.rank_potential_items(user_id, related_users_id)
+        top_k_users = [x[0] for x in related_users][:self.k]
+        assert len(top_k_users) == self.k
+        items_rank = self.rank_potential_items(user_id, top_k_users)
         if self.ensure_new and len(items_rank) == 0:
-            print('[{}] All recommend items has already been bought by user {}.'.format(self.name, user_id))  # noqa
+            print('[{}] All recommend items has already been touched by user {}.'.format(self.name, user_id))  # noqa
             return -3
         return super().get_top_n_items(items_rank)
 

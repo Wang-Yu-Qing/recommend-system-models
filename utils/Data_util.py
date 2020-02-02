@@ -21,6 +21,18 @@ class Data_util:
         row = [int(value) for value in row]
         return row
 
+    @staticmethod
+    def sort_user_actions(event_data, test_size):
+        train, test = pd.DataFrame(), pd.DataFrame()
+        users_id = pd.unique(event_data['visitorid'])
+        for user_id in users_id:
+            user_actions = event_data.loc[event_data['visitorid'] == user_id, :]
+            user_actions = user_actions.sort_values(by=["timestamp"])
+            split = int(test_size*len(user_actions))
+            test = pd.concat([test, user_actions.iloc[:split]], ignore_index=True)
+            train = pd.concat([train, user_actions.iloc[split:]], ignore_index=True)
+        return train.reset_index(drop=True), test.reset_index(drop=True)
+
     def read_event_data(self, test_size=0.25):
         if self.data_type[-1] == 'K':
             sep = "\t"
@@ -32,13 +44,11 @@ class Data_util:
                                self.data_type,
                                "ratings.dat"), 'r') as f:
             data = [self.parse_line(row, sep) for row in islice(f, None)]
-        split = int((1-test_size)*len(data))
         data = pd.DataFrame(data, columns=['visitorid',
                                            'itemid',
                                            'rating',
                                            'timestamp'])
-        data = data.sample(frac=1, random_state=100)
-        train, test = data.iloc[:split, :], data.iloc[split:, :]
+        train, test = self.sort_user_actions(data, test_size)
         return train, test
 
     def create_negative_samples_for_single_user(self, user, items_pop,
