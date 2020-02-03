@@ -155,7 +155,7 @@ class Base_model:
             n_valid_users += 1
         recall /= n_valid_users
         precision /= n_valid_users
-        coverage = len(covered_items)/len(self.items.keys())
+        coverage = len(covered_items)/len(self.items)
         print('[{}] Number of valid unique users: {}'.format(self.name, n_valid_users))  # noqa
         print('[{}] Total unique users in the test set: {}'.format(self.name, len(pd.unique(test_data['visitorid']))))  # noqa
         print('[{}] Recall:{}, Precision:{}, Coverage:{}'.format(self.name, recall, precision, coverage))  # noqa
