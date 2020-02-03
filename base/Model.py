@@ -1,23 +1,11 @@
 import pandas as pd
 import pickle
 import os
+from .User import User
+from .Item import Item
 
 
-class Item(object):
-    def __init__(self, id):
-        assert isinstance(id, int)
-        self.id = id
-        self.covered_users = {}
-
-
-class User(object):
-    def __init__(self, id):
-        assert isinstance(id, int)
-        self.id = id
-        self.covered_items = {}
-
-
-class Base_model:
+class Model:
     def __init__(self, n, model_type, data_type, ensure_new=True):
         """base class for all recommendation models
 
@@ -68,20 +56,20 @@ class Base_model:
             item_info, user_info = (item_id, event_time), (user_id, event_time)  # noqa
             # find if the item and user has been created
             try:
-                Base_model.update_obj(items[item_id].covered_users,
-                                      user_id, event_time)
+                Model.update_obj(items[item_id].covered_users,
+                                 user_id, event_time)
             except KeyError:
                 item = Item(item_id)
-                Base_model.update_obj(item.covered_users,
-                                      user_id, event_time)
+                Model.update_obj(item.covered_users,
+                                 user_id, event_time)
                 items[item_id] = item
             try:
-                Base_model.update_obj(users[user_id].covered_items,
-                                      item_id, event_time)
+                Model.update_obj(users[user_id].covered_items,
+                                 item_id, event_time)
             except KeyError:
                 user = User(user_id)
-                Base_model.update_obj(user.covered_items,
-                                      item_id, event_time)
+                Model.update_obj(user.covered_items,
+                                 item_id, event_time)
                 users[user_id] = user
         return items, users
 

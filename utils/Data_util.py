@@ -2,7 +2,7 @@ from itertools import islice
 import pandas as pd
 import os
 from glob import glob
-from Base_model import Base_model
+from base.Model import Model
 
 
 class Data_util:
@@ -26,18 +26,40 @@ class Data_util:
         train, test = pd.DataFrame(), pd.DataFrame()
         users_id = pd.unique(event_data['visitorid'])
         for user_id in users_id:
-            user_actions = event_data.loc[event_data['visitorid'] == user_id, :]
+            user_actions = event_data.loc[event_data['visitorid']
+                                          == user_id, :]
             user_actions = user_actions.sort_values(by=["timestamp"])
             split = int(test_size*len(user_actions))
-            test = pd.concat([test, user_actions.iloc[:split]], ignore_index=True)
-            train = pd.concat([train, user_actions.iloc[split:]], ignore_index=True)
+            test = pd.concat(
+                [test, user_actions.iloc[:split]], ignore_index=True)
+            train = pd.concat(
+                [train, user_actions.iloc[split:]], ignore_index=True)
         return train.reset_index(drop=True), test.reset_index(drop=True)
+
+    def read_item_tags_data(self):
+        with open("data/{}/item-tag.dat".format(self.data_type), 'r') as f:
+            item_tags = [self.parse_line(row, " ") for row in islice(f, None)]
+        return item_tags
+
+    def read_user_items_data(self, test_size):
+        train, test = {}, {}
+        with open("data/{}/users.dat".format(self.data_type), 'r') as f:
+            for user_id, items in enumerate(islice(f, None)):
+                items = items[1:]
+                split = int(test_size*len(items))
+                test[user_id] = items[:split]
+                train[user_id] = items[split:]
+        return train, test
 
     def read_event_data(self, test_size=0.25):
         if self.data_type[-1] == 'K':
             sep = "\t"
         elif self.data_type[-1] == 'M':
             sep = "::"
+        elif self.data_type == 'CiteULike':
+            item_tags = self.read_item_tags_data()
+            train, test = self.read_user_items_data(test_size)
+            return item_tags, train, test
         else:
             raise ValueError("[data_util] Invalid data type name.")
         with open(os.path.join("data",
@@ -76,7 +98,7 @@ class Data_util:
         and its popularity is high, then mark
         this item as user's negative sample
         """
-        self.items, self.users = Base_model.init_item_and_user_objects(pos_samples)  # noqa
+        self.items, self.users = Model.init_item_and_user_objects(pos_samples)  # noqa
         # sort items by popularity
         item_pop = {}
         for item_id, item in self.items.items():
@@ -92,6 +114,23 @@ class Data_util:
                                                          neg_frac)
         return pd.DataFrame(negative_samples,
                             columns=['visitorid', 'itemid', 'event'])
+
+    def build_samples(self, data_type, neg_frac):
+        """ return all samples
+        """
+        pos_samples = self.read_event_data(test_size=0)[0]
+        pos_samples['event'] = 1
+        neg_samples = self.create_negative_samples(pos_samples, neg_frac)
+        samples = pd.concat([neg_samples, pos_samples], ignore_index=True)
+        samples = samples.sample(
+            frac=1, random_state=100).reset_index(drop=True)
+        return samples
+
+    @staticmethod
+    def split_samples(test_size, samples):
+        split = int(len(samples)*test_size)
+        test, train = samples.iloc[:split, :], samples.iloc[split:, :]
+        return train, test
 
 
 if __name__ == '__main__':

@@ -5,10 +5,12 @@ from sklearn.model_selection import train_test_split
 from keras.layers import Input, Embedding, Flatten, dot, Dense, Concatenate, Add  # noqa
 from keras.models import load_model
 from keras import optimizers
-from Base_model import Base_model, User, Item
+from base.Model import Model
+from base.Item import Item
+from base.User import User
 
 
-class LFM(Base_model):
+class LFM(Model):
     def __init__(self, data_type, n, hidden_dim,
                  neg_frac_in_train, merge_type="dot", ensure_new=True):
         super().__init__(n, "LFM", data_type, ensure_new)

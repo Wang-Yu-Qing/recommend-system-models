@@ -1,8 +1,8 @@
-from Base_model import Base_model
+from base.Model import Model
 import random
 
 
-class Random(Base_model):
+class Random(Model):
     def __init__(self, n, data_type, ensure_new=True):
         super().__init__(n, "random", data_type, ensure_new=ensure_new)
 

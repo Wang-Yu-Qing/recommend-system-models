@@ -1,9 +1,11 @@
 import pandas as pd
 from math import sqrt, log
-from Base_model import Base_model, Item, User
+from base.Model import Model
+from base.User import User
+from base.Item import Item
 
 
-class UserCF(Base_model):
+class UserCF(Model):
     def __init__(self, n, k, data_type, ensure_new=True, timestamp=False):
         super().__init__(n, "UserCF", data_type, ensure_new=ensure_new)
         self.k = k
@@ -25,7 +27,7 @@ class UserCF(Base_model):
             row = self.sim_matrix[user_A_id] = {}  # all reference
         IIF = log(1+item_popularity)
         if self.timestamp:
-            time_elapse = Base_model.time_elapse(user_A_time, user_B_time)
+            time_elapse = Model.time_elapse(user_A_time, user_B_time)
             score = 1*time_elapse/IIF
         else:
             score = 1/IIF
@@ -106,7 +108,7 @@ class UserCF(Base_model):
                     # properly using offline data, this is just a demon
                     # user's interest for this history item
                     t_now = 1146454548
-                    time_elapse = Base_model.time_elapse(item_time, t_now)
+                    time_elapse = Model.time_elapse(item_time, t_now)
                     score = time_elapse*sim
                 else:
                     score = sim

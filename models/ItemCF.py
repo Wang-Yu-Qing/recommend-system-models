@@ -1,4 +1,6 @@
-from Base_model import Base_model, Item, User
+from base.Model import Model
+from base.User import User
+from base.Item import Item
 from math import sqrt, log
 import os
 import csv
@@ -6,7 +8,7 @@ import pandas as pd
 import pickle
 
 
-class ItemCF(Base_model):
+class ItemCF(Model):
     def __init__(self, n, k, data_type, ensure_new=True, timestamp=False):
         super().__init__(n, "ItemCF", data_type, ensure_new=ensure_new)
         self.k = k
@@ -25,7 +27,7 @@ class ItemCF(Base_model):
         # compute score
         IUF = log(1+user_frequency)
         if self.timestamp:
-            time_elapse = Base_model.time_elapse(item_A_time, item_B_time)
+            time_elapse = Model.time_elapse(item_A_time, item_B_time)
             score = 1*time_elapse/IUF
         else:
             score = 1/IUF
@@ -82,7 +84,7 @@ class ItemCF(Base_model):
                     # properly using offline data, this is just a demon
                     # user's interest for this history item
                     t_now = 1146454548
-                    time_elapse = Base_model.time_elapse(t_now, t_history_item)
+                    time_elapse = Model.time_elapse(t_now, t_history_item)
                     score = time_elapse*sim
                 else:
                     # if not consider time context, for history touched items

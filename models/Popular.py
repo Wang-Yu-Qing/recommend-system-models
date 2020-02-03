@@ -1,7 +1,7 @@
-from Base_model import Base_model
+from base.Model import Model
 
 
-class Popular(Base_model):
+class Popular(Model):
     def __init__(self, n, data_type, ensure_new=True):
         super().__init__(n, "MostPopular", data_type, ensure_new=ensure_new)
 
