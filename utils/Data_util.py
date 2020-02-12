@@ -6,7 +6,14 @@ from base.Model import Model
 
 
 class Data_util:
+    data_paths = {
+        "MovieLens_1M": "data/MovieLens_1M/ratings.dat",
+        "MovieLens_100K": "data/MovieLens_100K/ratings.dat",
+        "Hetrec-2k": "data/Hetrec-2k/user_taggedartists-timestamps.dat"
+    }
+
     def __init__(self, data_type):
+        # get available data folder names
         data_types = [dir_name.split("/")[1] for dir_name in glob("data/*")]
         if data_type not in data_types:
             raise ValueError('Wrong data {} type provided, must be in {}'.
@@ -30,46 +37,28 @@ class Data_util:
                                           == user_id, :]
             user_actions = user_actions.sort_values(by=["timestamp"])
             split = int(test_size*len(user_actions))
-            test = pd.concat(
-                [test, user_actions.iloc[:split]], ignore_index=True)
-            train = pd.concat(
-                [train, user_actions.iloc[split:]], ignore_index=True)
+            test = pd.concat([test, user_actions.iloc[:split]],
+                             ignore_index=True)
+            train = pd.concat([train, user_actions.iloc[split:]],
+                              ignore_index=True)
         return train.reset_index(drop=True), test.reset_index(drop=True)
 
-    def read_item_tags_data(self):
-        with open("data/{}/item-tag.dat".format(self.data_type), 'r') as f:
-            item_tags = [self.parse_line(row, " ") for row in islice(f, None)]
-        return item_tags
-
-    def read_user_items_data(self, test_size):
-        train, test = {}, {}
-        with open("data/{}/users.dat".format(self.data_type), 'r') as f:
-            for user_id, items in enumerate(islice(f, None)):
-                items = items[1:]
-                split = int(test_size*len(items))
-                test[user_id] = items[:split]
-                train[user_id] = items[split:]
-        return train, test
-
-    def read_event_data(self, test_size=0.25):
-        if self.data_type[-1] == 'K':
+    def read_event_data(self, test_size=0.25, skip_first_row=False):
+        if self.data_type[-1] == 'K' or self.data_type == "Hetrec-2k":
             sep = "\t"
         elif self.data_type[-1] == 'M':
             sep = "::"
-        elif self.data_type == 'CiteULike':
-            item_tags = self.read_item_tags_data()
-            train, test = self.read_user_items_data(test_size)
-            return item_tags, train, test
         else:
             raise ValueError("[data_util] Invalid data type name.")
-        with open(os.path.join("data",
-                               self.data_type,
-                               "ratings.dat"), 'r') as f:
+        with open(self.data_paths[self.data_type], 'r') as f:
+            if skip_first_row:
+                f.readline()  # make the generator one step forward
             data = [self.parse_line(row, sep) for row in islice(f, None)]
-        data = pd.DataFrame(data, columns=['visitorid',
-                                           'itemid',
-                                           'rating',
-                                           'timestamp'])
+        if self.data_type == "Hetrec-2k":
+            cols = ["visitorid", "itemid", "tagid", "timestamp"]
+        else:
+            cols = ["visitorid", "itemid", "rating", "timestamp"]
+        data = pd.DataFrame(data, columns=cols)
         train, test = self.sort_user_actions(data, test_size)
         return train, test
 

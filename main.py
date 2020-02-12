@@ -3,7 +3,7 @@ from models.Random import Random
 from models.ItemCF import ItemCF
 from models.UserCF import UserCF
 from models.TagBasic import TagBasic
-from models.LFM import LFM
+# from models.LFM import LFM
 from utils.Data_util import Data_util
 import pandas as pd
 
@@ -31,8 +31,8 @@ def run_model(model_type, data_type, **kwargs):
         train_data, test_data = DU.read_event_data()
         model = Popular(data_type=data_type, n=kwargs['n'])
     elif model_type == "TagBasic":
-        item_tag, train_data, test_data = DU.read_event_data()
-        model = TagBasic(data_type=data_type, n=kwargs['n'])
+        train_data, test_data = DU.read_event_data(skip_first_row=True)
+        model = TagBasic(data_type=data_type, n=kwargs['n'], k=kwargs['k'])
     else:
         raise ValueError("Invalid model type: {}".format(model_type))
     model.fit(train_data, force_training=kwargs['force_training'])
@@ -40,7 +40,8 @@ def run_model(model_type, data_type, **kwargs):
 
 
 if __name__ == '__main__':
-    # run_model("TagBasic", "CiteULike", n=20)
+    run_model("TagBasic", "Hetrec-2k", n=20, k=5, force_training=False)
+    raise SystemExit
     run_model("Random", "MovieLens_100K",
               n=20, force_training=False, timestamp=True)
     run_model("MostPopular", "MovieLens_100K",

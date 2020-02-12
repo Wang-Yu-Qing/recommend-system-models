@@ -3,6 +3,7 @@ import pickle
 import os
 from .User import User
 from .Item import Item
+from .Tag import Tag
 
 
 class Model:
@@ -41,7 +42,31 @@ class Model:
         dic[obj_id] = timestamp
 
     @staticmethod
-    def init_item_and_user_objects(event_data):
+    def update_tag(tag_id, tags, user, item):
+        try:
+            tag = tags[tag_id]
+        except KeyError:
+            tag = Tag(tag_id)
+            tags[tag_id] = tag
+        tag.n_used += 1
+        # update tag's item count
+        try:
+            tag.items_count[item.id] += 1
+        except KeyError:
+            tag.items_count[item.id] = 1
+        # update user's tag count
+        try:
+            user.tags_count[tag_id] += 1
+        except KeyError:
+            user.tags_count[tag_id] = 1
+        # update item's tag count
+        try:
+            item.tags_count[tag_id] += 1
+        except KeyError:
+            item.tags_count[tag_id] = 1
+
+    @staticmethod
+    def init_item_and_user_objects(event_data, tag=False):
         """
             iter through the training data, doing:
                 Init Item object for each item,
@@ -50,6 +75,8 @@ class Model:
                 and record unique items touched by the user
         """
         items, users = {}, {}
+        if tag:
+            tags = {}
         for index, row in event_data.iterrows():
             item_id, user_id = int(row['itemid']), int(row['visitorid'])
             event_time = row['timestamp']
@@ -71,9 +98,20 @@ class Model:
                 Model.update_obj(user.covered_items,
                                  item_id, event_time)
                 users[user_id] = user
+            if tag:
+                user, item = users[user_id], items[item_id]
+                # all reference
+                Model.update_tag(row["tagid"], tags, user, item)
+        if tag:
+            # sort tag's items count dict
+            for tag in tags.values():
+                tag.items_count = dict(sorted(tag.items_count.items(),
+                                              key=lambda item: item[1],
+                                              reverse=True))
+            return items, users, tags
         return items, users
 
-    def fit(self, train_data, force_training):
+    def fit(self, train_data, force_training, tag=False):
         """Init user and item dict,
            self.users -> {user_id:user_object}
            self.item -> {item_id:item_object}
@@ -85,7 +123,10 @@ class Model:
             except OSError:
                 print("[{}] Previous trained model not found, start training a new one...".format(self.name))  # noqa
         print("[{}] Init user and item objects...".format(self.name))
-        self.items, self.users = self.init_item_and_user_objects(train_data)  # noqa
+        if tag:
+            self.items, self.users, self.tags = self.init_item_and_user_objects(train_data, tag)  # noqa
+        else:
+            self.items, self.users = self.init_item_and_user_objects(train_data)  # noqa
         print("[{}] Init done!".format(self.name))
 
     def get_top_n_items(self, items_rank):
