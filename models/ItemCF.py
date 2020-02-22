@@ -1,12 +1,10 @@
+import os
+import pandas as pd
+import pickle
 from base.Model import Model
 from base.User import User
 from base.Item import Item
 from math import sqrt, log
-import os
-import csv
-import pandas as pd
-import pickle
-
 
 class ItemCF(Model):
     def __init__(self, n, k, data_type, ensure_new=True, timestamp=False):
@@ -56,16 +54,15 @@ class ItemCF(Model):
                 sim /= sqrt(item_pop_A*item_pop_B)
                 assert sim <= 1
 
-    def fit(self, event_data, force_training=False, save=True):
-        if super().fit(event_data, force_training) == "previous model loaded":
+    def fit(self, event_data):
+        if super().fit(event_data):
             return
         self.sim_matrix = {}
         print("[{}] Building item-item similarity matrix, this may take some time...".format(self.name))  # noqa
         self.compute_item_item_sim_based_on_common_users()
         self.standardize_sim_values()
         print("[{}] Build done!".format(self.name))
-        if save:
-            super().save()
+        self.save()
 
     def rank_potential_items(self, user_id, all_k_sim_items):
         items_rank = {}
@@ -80,8 +77,6 @@ class ItemCF(Model):
                     continue
                 # compute score
                 if self.timestamp:
-                    # note that time context model cannot be evaluated
-                    # properly using offline data, this is just a demon
                     # user's interest for this history item
                     t_now = 1146454548
                     time_elapse = Model.time_elapse(t_now, t_history_item)
@@ -94,7 +89,7 @@ class ItemCF(Model):
                     items_rank[item_id] += score
                 except KeyError:
                     items_rank[item_id] = score
-        assert len(items_rank) >= self.n
+        # assert len(items_rank) >= self.n
         return items_rank
 
     def normalize_k_items_sim(self, k_items):
@@ -143,4 +138,18 @@ class ItemCF(Model):
         return items_id
 
     def evaluate(self, test_data):
-        super().evaluate_recommendation(test_data)
+        return super().evaluate_recommendation(test_data)
+
+    def save(self):
+        super().save()
+        sim_matrix = os.path.join('models/saved_models/sim_matrix_{}'.format(self.name + '.pickle'))
+        with open(sim_matrix, 'wb') as f:
+            f.write(pickle.dumps(self.sim_matrix))
+        print("[{}] Model saved.".format(self.name))
+
+    def load(self):
+        super().load()
+        sim_matrix = os.path.join('models/saved_models/sim_matrix_{}'.format(self.name + '.pickle'))
+        with open(sim_matrix, 'rb') as f:
+            self.sim_matrix = pickle.loads(f.read())
+        print("[{}] Previous sim matrix found and loaded.".format(self.name))  # noqa

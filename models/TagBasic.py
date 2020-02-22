@@ -8,8 +8,9 @@ class TagBasic(Model):
         self.k = k
         self.name += "_{}".format(k)
 
-    def fit(self, train_data, force_training, tag=True):
-        super().fit(train_data, force_training, tag=tag)
+    def fit(self, train_data):
+        super().fit(train_data, tag=True)
+        self.save()
 
     def find_k_most_used_tag(self, user):
         tags_count_sorted = sorted(user.tags_count.items(),
@@ -56,4 +57,4 @@ class TagBasic(Model):
             return -1
 
     def evaluate(self, test_data):
-        result = super().evaluate_recommendation(test_data)
+        return super().evaluate_recommendation(test_data)

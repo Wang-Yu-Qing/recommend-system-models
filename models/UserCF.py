@@ -1,4 +1,6 @@
+import os
 import pandas as pd
+import pickle
 from math import sqrt, log
 from base.Model import Model
 from base.User import User
@@ -11,7 +13,7 @@ class UserCF(Model):
         self.k = k
         self.name += "_k_{}".format(k)
         if timestamp:
-            self.name += "_timecontext"
+            self.name += "_TimeContext"
         self.timestamp = timestamp
 
     def update_user_user_sim(self, user_A_info, user_B_info, item_popularity):
@@ -63,7 +65,7 @@ class UserCF(Model):
             where lA is the number of unique items A touched and
             lB is the numebr of unique items B touched.
         """
-        for user_id_A, row in self.sim_matrix.items():  # count is reference
+        for user_id_A, row in self.sim_matrix.items():  # row is reference
             lA = len(self.users[user_id_A].covered_items)
             for user_id_B in row.keys():
                 lB = len(self.users[user_id_B].covered_items)
@@ -77,19 +79,18 @@ class UserCF(Model):
         self.compute_user_user_sim_base_on_common_items()
         self.standardize_sim_values()
 
-    def fit(self, event_data, force_training=False, save=True):
+    def fit(self, event_data):
         # init 'similarity matrix', using dict rather than list of list
         # so that the user_id is not ristricted to be 0~len(users)-1
         # for userCF, the matrix keys are user ids.
         # {'userA':{'userB': sim_between_A_and_B, .....},
         #  'userB':{.....}, ...}
-        if super().fit(event_data, force_training) == "previous model loaded":
+        if super().fit(event_data):
             return
         print("[{}] Building user-user similarity matrix, this may take some time...".format(self.name))  # noqa
         self.build_user_user_similarity_matrix(event_data)
         print("[{}] Build done!".format(self.name))
-        if save:
-            super().save()
+        self.save()
 
     def rank_potential_items(self, target_user_id, top_k_users):
         """for k similar users, rank common items
@@ -116,7 +117,7 @@ class UserCF(Model):
                     items_rank[item_id] += score
                 except KeyError:
                     items_rank[item_id] = score
-        assert len(items_rank) >= self.n
+        # assert len(items_rank) >= self.n
         return items_rank
 
     def make_recommendation(self, user_id):
@@ -140,3 +141,18 @@ class UserCF(Model):
 
     def evaluate(self, test_data):
         return super().evaluate_recommendation(test_data)
+
+    def save(self):
+        super().save()
+        sim_matrix = os.path.join('models/saved_models/sim_matrix_{}'.format(self.name + '.pickle'))
+        with open(sim_matrix, 'wb') as f:
+            print(sim_matrix)
+            f.write(pickle.dumps(self.sim_matrix))
+        print("[{}] Model saved".format(self.name))
+
+    def load(self):
+        super().load()
+        sim_matrix = os.path.join('models/saved_models/sim_matrix_{}'.format(self.name + '.pickle'))
+        with open(sim_matrix, 'rb') as f:
+            self.sim_matrix = pickle.loads(f.read())
+        print("[{}] Previous sim matrix found and loaded.".format(self.name))  # noqa

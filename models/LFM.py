@@ -1,21 +1,23 @@
+import os
 import pandas as pd
+import numpy as np
 import pickle
 import keras
 from sklearn.model_selection import train_test_split
 from keras.layers import Input, Embedding, Flatten, dot, Dense, Concatenate, Add  # noqa
 from keras.models import load_model
 from keras import optimizers
+import tensorflow as tf
 from base.Model import Model
 from base.Item import Item
 from base.User import User
 
+EMBEDDING_DIM = 200
 
 class LFM(Model):
-    def __init__(self, data_type, n, hidden_dim,
-                 neg_frac_in_train, merge_type="dot", ensure_new=True):
+    def __init__(self, data_type, n, neg_frac_in_train, merge_type="dot", ensure_new=True):
         super().__init__(n, "LFM", data_type, ensure_new)
-        self.name += "_neg_{}_{}_dim_{}".format(neg_frac_in_train, merge_type, hidden_dim)  # noqa
-        self.hidden_dim = hidden_dim
+        self.name += "_neg_{}_{}".format(neg_frac_in_train, merge_type)
         self.n = n
         self.ensure_new = ensure_new
         self.merge_type = merge_type
@@ -35,7 +37,7 @@ class LFM(Model):
         # add user vec and item vec as a new vec
         adding_layer = Add()([item_vec, user_vec])
         # dense layers with bias
-        dense_1 = Dense(units=128, input_shape=(self.hidden_dim, ),
+        dense_1 = Dense(units=128, input_shape=(EMBEDDING_DIM, ),
                         activation='relu',
                         use_bias=True,
                         name='dense_1')(adding_layer)
@@ -61,7 +63,7 @@ class LFM(Model):
         # concat user vec and item vec as a new vec
         concat_layer = Concatenate()([item_vec, user_vec])
         # dense layers with bias
-        dense_1 = Dense(units=128, input_shape=(self.hidden_dim*2, ),
+        dense_1 = Dense(units=128, input_shape=(EMBEDDING_DIM*2, ),
                         activation='relu',
                         use_bias=True,
                         name='dense_1')(concat_layer)
@@ -95,17 +97,18 @@ class LFM(Model):
             using (max_id+1) as input dim will be all good,
             except that may cause some waste of memory
         """
-        # struct for item
+        # struct for item, input for embedding layer must be int
         item_input = Input(shape=[1], name='Item')
         item_embed = Embedding(input_dim=self.max_item_id+1,
-                               output_dim=self.hidden_dim,
+                               output_dim=EMBEDDING_DIM,
                                input_length=1,
                                name='item_embedding')(item_input)
+        # need to flatten even when matrix has only one row
         item_vec = Flatten(name='item_flatten')(item_embed)
         # struct for user
         user_input = Input(shape=[1], name='User')
         user_embed = Embedding(input_dim=self.max_user_id+1,
-                               output_dim=self.hidden_dim,
+                               output_dim=EMBEDDING_DIM,
                                input_length=1,
                                name='user_embedding')(user_input)
         user_vec = Flatten(name='user_flatten')(user_embed)
@@ -118,55 +121,90 @@ class LFM(Model):
         else:
             raise ValueError('Invalid embeds merge type provided!')
         self.model = keras.Model([item_input, user_input], out_put)
-        optimizer = optimizers.Adam(lr=0.0005)
-        self.model.compile(optimizer, 'mse')
+        optimizer = optimizers.Adam(lr=0.0001)
+        self.model.compile(optimizer,
+                           loss="binary_crossentropy",
+                           metrics=["accuracy"])
         keras.utils.plot_model(self.model,
-                               to_file='models/model_struc/model_{}.png'.format(
-                                   self.merge_type),
+                               to_file='models/model_struc/model_{}.png'.format(self.merge_type),
                                show_shapes=True, show_layer_names=True)
         self.model.summary()
 
-    def fit(self, samples, force_training, save=True):
+    def fit(self, samples):
         # record user's history items in the training data
         assert len(pd.unique(samples['event'])) == 2
-        pos_samples = samples.loc[samples['event'] == 1, :]
-        super().fit(pos_samples, force_training)
+        events = samples.loc[samples['event'] == 1, :]
+        if super().fit(events):
+            return
+        del events
+        # try to load previous trained model
+        try:
+            self.model = load_model("models/saved_models/{}.h5".format(self.name))
+            return
+        except OSError:
+            print("[{}] Previous model not found, train a new model".format(self.name))
+        # convert id to int for embedding layers
         self.max_user_id = max(samples['visitorid'])
         self.max_item_id = max(samples['itemid'])
         self.construct_model()
         self.train(samples)
-        if save:
-            super().save()
+        self.save()
 
     def train(self, train_data):
         self.model.fit([train_data['itemid'],
                         train_data['visitorid']],
                        train_data['event'],
-                       epochs=20)
+                       epochs=30)
 
-    def evaluate_mse(self, test_data):
+    def evaluate_prediction(self, test_data):
         # input order must corresponding to the model input building order
         result = self.model.evaluate(x=[test_data['itemid'],
                                         test_data['visitorid']],
-                                     y=test_data['event'])
-        print('mse: ', result)
+                                     y=np.array([1 for _ in range(len(test_data))]).reshape(len(test_data), 1))
+        print(result)
 
     def make_recommendation(self, user_id):
+        """
+            use batches to predict user's interest to all items
+            much faster than predict one sample at a time
+        """
         try:
             user = self.users[user_id]
         except KeyError:
-            print('User {} has not shown in the training set.'.format(user_id))
+            print('User {} not shown in the training set.'.format(user_id))
             return -1
-        items_rank = {}
-        # compute user's interest of every item
-        for item_id in self.items.keys():
-            if self.ensure_new and item_id in user.covered_items:
+        history_items = user.covered_items
+        samples = []
+        for item_id, item in self.items.items():
+            if item_id in history_items:
                 continue
-            score = self.model.predict([[item_id], [user_id]])
-            items_rank[item_id] = score
+            samples.append([item_id, user_id])
+        # prepare inputs (list of itemid array and userid array) to predict
+        # array's shape is (n_samples * n_values_persample)
+        itemid_input = np.array([sample[0] for sample in samples]).reshape(len(samples), 1)
+        userid_input = np.array([sample[1] for sample in samples]).reshape(len(samples), 1)
+        inputs = [itemid_input, userid_input]
+        # make prediction
+        interests = self.model.predict(inputs, batch_size=128)
+        items_rank = {}
+        for item_id, interest in zip(itemid_input, interests):
+            items_rank[item_id[0]] = interest[0]
         reco_items = super().get_top_n_items(items_rank)
         return reco_items
 
     def evaluate(self, test_data):
-        self.evaluate_mse(test_data)
-        super().evaluate_recommendation(test_data)
+        # convert id to int
+        # self.evaluate_prediction(test_data)
+        return super().evaluate_recommendation(test_data)
+
+    def save(self):
+        super().save()
+        keras_model = os.path.join('models/saved_models/keras_model_{}'.format(self.name + '.h5'))
+        self.model.save(keras_model)
+        print("[{}] Model saved".format(self.name))
+
+    def load(self):
+        super().load()
+        keras_model = os.path.join('models/saved_models/keras_model_{}'.format(self.name + '.h5'))
+        self.model = load_model(keras_model)
+        print("[{}] Previous keras model found and loaded.".format(self.name))

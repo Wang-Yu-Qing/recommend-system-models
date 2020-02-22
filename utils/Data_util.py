@@ -25,7 +25,6 @@ class Data_util:
         row = row.split(sep)
         # remove \n
         row[-1] = row[-1][:-1]
-        row = [int(value) for value in row]
         return row
 
     @staticmethod
@@ -33,8 +32,7 @@ class Data_util:
         train, test = pd.DataFrame(), pd.DataFrame()
         users_id = pd.unique(event_data['visitorid'])
         for user_id in users_id:
-            user_actions = event_data.loc[event_data['visitorid']
-                                          == user_id, :]
+            user_actions = event_data.loc[event_data['visitorid']== user_id, :]
             user_actions = user_actions.sort_values(by=["timestamp"])
             split = int(test_size*len(user_actions))
             test = pd.concat([test, user_actions.iloc[:split]],
@@ -43,9 +41,13 @@ class Data_util:
                               ignore_index=True)
         return train.reset_index(drop=True), test.reset_index(drop=True)
 
-    def read_event_data(self, test_size=0.25, skip_first_row=False):
-        if self.data_type[-1] == 'K' or self.data_type == "Hetrec-2k":
+    def read_event_data(self, test_size=0.25):
+        skip_first_row = False
+        if self.data_type[-1] == 'K':
             sep = "\t"
+        elif self.data_type == "Hetrec-2k":
+            sep = "\t"
+            skip_first_row = True
         elif self.data_type[-1] == 'M':
             sep = "::"
         else:
@@ -59,8 +61,23 @@ class Data_util:
         else:
             cols = ["visitorid", "itemid", "rating", "timestamp"]
         data = pd.DataFrame(data, columns=cols)
+        # data type convert
+        data["timestamp"] = data["timestamp"].apply(lambda x: int(x))
+        data["visitorid"] = data["visitorid"].apply(lambda x: int(x))
+        data["itemid"] = data["itemid"].apply(lambda x: int(x))
         train, test = self.sort_user_actions(data, test_size)
         return train, test
+
+    @staticmethod
+    def join_movie_lens_event_data(event_data, users_info, items_info):
+        # convert data type before join
+        # false positive detection may occur
+        # https://stackoverflow.com/questions/23688307/settingwithcopywarning-even-when-using-loc
+        # join with user info
+        event_data = event_data.merge(users_info, how="left", on="visitorid")
+        # join with item info
+        event_data = event_data.merge(items_info, how="left", on="itemid")
+        return event_data
 
     def create_negative_samples_for_single_user(self, user, items_pop,
                                                 negative_samples,
@@ -104,19 +121,19 @@ class Data_util:
         return pd.DataFrame(negative_samples,
                             columns=['visitorid', 'itemid', 'event'])
 
-    def build_samples(self, data_type, neg_frac):
+    def build_samples(self, neg_frac, train_event_data):
         """ return all samples
         """
-        pos_samples = self.read_event_data(test_size=0)[0]
-        pos_samples['event'] = 1
+        train_event_data["event"] = 1
+        pos_samples = train_event_data
         neg_samples = self.create_negative_samples(pos_samples, neg_frac)
-        samples = pd.concat([neg_samples, pos_samples], ignore_index=True)
-        samples = samples.sample(
-            frac=1, random_state=100).reset_index(drop=True)
+        # timestamp, rating for negative samples are NA
+        samples = pd.concat([neg_samples, pos_samples], ignore_index=True, sort=False)
+        samples = samples.sample(frac=1, random_state=100).reset_index(drop=True)  # noqa
         return samples
 
     @staticmethod
-    def split_samples(test_size, samples):
+    def split_samples(samples, test_size):
         split = int(len(samples)*test_size)
         test, train = samples.iloc[:split, :], samples.iloc[split:, :]
         return train, test
